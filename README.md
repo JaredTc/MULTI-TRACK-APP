@@ -31,7 +31,7 @@ lib/
 
 ## 💻 Capturas de pantalla
 <img src="assets/screnshots/app.png" alt="Pantalla principal" width="300"/><img src="assets/screnshots/sesion.png" alt="Pantalla principal" width="300"/>
-<img src="assets/screnshots/sesion.png" alt="Pantalla principal" width="300"/> <img src="assets/screnshots/sesion_start.png" alt="Pantalla principal" width="300"/>
+ <img src="assets/screnshots/sesion_start.png" alt="Pantalla principal" width="300"/>
 ## 🎨 Diseño
 
 <img src="assets/designs/Home.png" alt="Pantalla principal" width="400"/> <img src="assets/designs/library.png" alt="Pantalla principal" width="400"/>
