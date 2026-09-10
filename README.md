@@ -34,9 +34,6 @@ lib/
 
 ## 🎨 Diseño
 
-<img src="assets/designs/Home.png" alt="Pantalla principal" width="200"/>
+<img src="assets/designs/Home.png" alt="Pantalla principal" width="600"/> <img src="assets/designs/library" alt="Pantalla principal" width="600"/>
+<img src="assets/designs/sesion_2.png" alt="Pantalla principal" width="600"/> <img src="assets/designs/sesion.png" alt="Pantalla principal" width="600"/>
 
-
-
-Diseño original  💡  
-(https://dribbble.com/shots/23609232-Music-App-UI) :contentReference[oaicite:3]{index=3}
