@@ -6,9 +6,10 @@
 Aplicacion para musicos , cargar multitracks para ensayos u eventos 
 
 🔹 Características
-- Carga de tracks individuales como click, secuencias etc.
+- Riverprood como provedor de estado, just_audio como driver de audio
+-  Carga de tracks individuales como click, secuencias etc.
 - Faders, mutes, solos
-- Reoruccion, permite mover la pista.
+- Repruccion, permite mover la pista al tiempo que desees.
 
 
 
