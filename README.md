@@ -30,9 +30,8 @@ lib/
 ```
 
 ## 💻 Capturas de pantalla
-<!-- <img src="docs/home.jpeg" alt="Pantalla principal" width="200"/> <img src="docs/play.jpeg" alt="Pantalla principal" width="200"/> <img src="docs/config.jpeg" alt="Pantalla principal" width="200"/> -->
-
-
+<img src="assets/screenshots/app.png" alt="Pantalla principal" width="300"/><img src="assets/screenshots/sesion.png" alt="Pantalla principal" width="300"/>
+<img src="assets/screenshots/sesion.png" alt="Pantalla principal" width="300"/> <img src="assets/screenshots/sesion_start.png" alt="Pantalla principal" width="300"/>
 ## 🎨 Diseño
 
 <img src="assets/designs/Home.png" alt="Pantalla principal" width="400"/> <img src="assets/designs/library.png" alt="Pantalla principal" width="400"/>
