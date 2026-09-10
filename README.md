@@ -35,5 +35,5 @@ lib/
 ## 🎨 Diseño
 
 <img src="assets/designs/Home.png" alt="Pantalla principal" width="400"/> <img src="assets/designs/library.png" alt="Pantalla principal" width="400"/>
-<img src="assets/designs/sesion_2.png" alt="Pantalla principal" width="400"/> <img src="assets/designs/sesion.png" alt="Pantalla principal" width="400"/>
+<img src="assets/designs/sesion.png" alt="Pantalla principal" width="400"/><img src="assets/designs/sesion_2.png" alt="Pantalla principal" width="400"/> 
 
