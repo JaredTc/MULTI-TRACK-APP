@@ -1,20 +1,40 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:multitracks/config/app_theme.dart';
-import 'package:multitracks/providers/session_provider.dart';
+import 'package:multitracks/providers/playback_provider.dart';
+import 'package:multitracks/providers/tracks_mixer_provider.dart';
 
 class WaveTrack extends ConsumerWidget {
   const WaveTrack({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final progress = ref.watch(sessionProvider.select((s) => s.progress));
-    final notifier = ref.read(sessionProvider.notifier);
+    // 1. Verificar si existen pistas activas en el mezclador
+    final hasTracks = ref.watch(
+      tracksMixerProvider.select((s) => s.tracks.isNotEmpty),
+    );
+
+    // Si la lista de pistas está vacía, no dibuja nada
+    if (!hasTracks) {
+      return const SizedBox.shrink();
+    }
+
+    // 2. Escuchar únicamente el progreso de reproducción
+    final rawProgress = ref.watch(playbackProvider.select((s) => s.progress));
+
+    final progress = (rawProgress.isNaN || rawProgress.isInfinite)
+        ? 0.0
+        : rawProgress.clamp(0.0, 1.0);
+
+    // 3. Notifier para ejecutar gestos de seek
+    final playbackNotifier = ref.read(playbackProvider.notifier);
 
     return Container(
-      height: 200,
+      height: 100,
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: AppTheme.secondaryColor,
         borderRadius: BorderRadius.circular(16),
@@ -28,7 +48,7 @@ class WaveTrack extends ConsumerWidget {
                     0.0,
                     1.0,
                   );
-              notifier.seekTo(newProgress);
+              playbackNotifier.seekTo(newProgress);
             },
             onHorizontalDragUpdate: (details) {
               final newProgress =
@@ -36,16 +56,14 @@ class WaveTrack extends ConsumerWidget {
                     0.0,
                     1.0,
                   );
-              notifier.seekTo(newProgress);
+              playbackNotifier.seekTo(newProgress);
             },
             child: CustomPaint(
               size: Size(constraints.maxWidth, constraints.maxHeight),
-              painter: WaveformPainter(
+              painter: DynamicWaveformPainter(
                 progress: progress,
                 playheadColor: const Color(0xFFA8F5A2),
-                shadeColor: const Color(
-                  0xFF0088FF,
-                ).withOpacity(0.20), // Azul tenue
+                shadeColor: const Color(0xFF0088FF).withOpacity(0.20),
               ),
             ),
           );
@@ -55,80 +73,24 @@ class WaveTrack extends ConsumerWidget {
   }
 }
 
-class WaveformPainter extends CustomPainter {
+class DynamicWaveformPainter extends CustomPainter {
   final double progress;
   final Color playheadColor;
   final Color shadeColor;
 
-  WaveformPainter({
+  DynamicWaveformPainter({
     required this.progress,
     required this.playheadColor,
     required this.shadeColor,
   });
 
-  final List<double> sampleHeights = const [
-    0.2,
-    0.3,
-    0.45,
-    0.6,
-    0.75,
-    0.85,
-    0.9,
-    0.95,
-    0.9,
-    0.7,
-    0.4,
-    0.5,
-    0.75,
-    0.9,
-    0.95,
-    0.9,
-    0.8,
-    0.65,
-    0.8,
-    0.9,
-    0.95,
-    0.9,
-    0.75,
-    0.5,
-    0.3,
-    0.45,
-    0.7,
-    0.85,
-    0.95,
-    0.8,
-    0.6,
-    0.4,
-    0.3,
-    0.5,
-    0.7,
-    0.85,
-    0.9,
-    0.8,
-    0.6,
-    0.4,
-    0.3,
-    0.5,
-    0.75,
-    0.9,
-    0.95,
-    0.85,
-    0.7,
-    0.5,
-    0.3,
-    0.4,
-    0.6,
-    0.8,
-    0.9,
-    0.85,
-    0.7,
-  ];
-
   @override
   void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) return;
+
     final double playheadX = size.width * progress;
 
-    // 1. DIBUJAR EL RECTÁNGULO DE SOMBREADO
+    // 1. DIBUJAR SOMBRA DE PROGRESO
     if (playheadX > 0) {
       final shadePaint = Paint()
         ..color = shadeColor
@@ -143,27 +105,30 @@ class WaveformPainter extends CustomPainter {
       canvas.drawRRect(shadeRect, shadePaint);
     }
 
-    final double totalBars = sampleHeights.length.toDouble();
-    final double spacing = 3.0;
-    final double barWidth = (size.width - (totalBars * spacing)) / totalBars;
+    // 2. CÁLCULO DINÁMICO DE BARRAS
+    const double barWidth = 3.5;
+    const double spacing = 2.5;
+    final int totalBars = (size.width / (barWidth + spacing)).floor();
 
-    // 2. DIBUJAR BARRAS DE LA ONDA (Estilo único e idéntico para todas)
     final barPaint = Paint()
-      ..color = Colors.white.withOpacity(0.15)
+      ..color = Colors.white.withOpacity(0.25)
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
-      ..strokeWidth = 5.5;
+      ..strokeWidth = barWidth;
 
-    for (int i = 0; i < sampleHeights.length; i++) {
-      final double x = i * (barWidth + spacing) + barWidth / 2;
-      final double barHeight = size.height * sampleHeights[i];
+    final Random random = Random(42);
+
+    for (int i = 0; i < totalBars; i++) {
+      final double x = i * (barWidth + spacing) + (barWidth / 2);
+      final double heightFactor = 0.15 + (random.nextDouble() * 0.75);
+      final double barHeight = size.height * heightFactor;
       final double top = (size.height - barHeight) / 2;
       final double bottom = top + barHeight;
 
       canvas.drawLine(Offset(x, top), Offset(x, bottom), barPaint);
     }
 
-    // 3. DIBUJAR LÍNEA VERDE DE REPRODUCCIÓN (Playhead)
+    // 3. DIBUJAR PLAYHEAD
     final playheadPaint = Paint()
       ..color = playheadColor
       ..strokeWidth = 2.5
@@ -179,11 +144,11 @@ class WaveformPainter extends CustomPainter {
       ..color = playheadColor
       ..style = PaintingStyle.fill;
 
-    canvas.drawCircle(Offset(playheadX, 0), 4.0, circlePaint);
+    canvas.drawCircle(Offset(playheadX, 0), 4.5, circlePaint);
   }
 
   @override
-  bool shouldRepaint(covariant WaveformPainter oldDelegate) {
+  bool shouldRepaint(covariant DynamicWaveformPainter oldDelegate) {
     return oldDelegate.progress != progress ||
         oldDelegate.shadeColor != shadeColor ||
         oldDelegate.playheadColor != playheadColor;

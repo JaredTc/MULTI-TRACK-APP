@@ -3,47 +3,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:multitracks/data/sesion_state.dart';
 import 'package:multitracks/data/track_model.dart';
-
-class SessionState {
-  final bool isPlaying;
-  final Duration position;
-  final Duration duration;
-  final List<TrackModel> tracks;
-  final double masterVolume;
-  final bool isLoading;
-
-  SessionState({
-    this.isPlaying = false,
-    this.position = Duration.zero,
-    this.duration = Duration.zero,
-    this.tracks = const [],
-    this.masterVolume = 1.0,
-    this.isLoading = false,
-  });
-
-  double get progress => duration.inMilliseconds == 0
-      ? 0.0
-      : (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0);
-
-  SessionState copyWith({
-    bool? isPlaying,
-    Duration? position,
-    Duration? duration,
-    List<TrackModel>? tracks,
-    double? masterVolume,
-    bool? isLoading,
-  }) {
-    return SessionState(
-      isPlaying: isPlaying ?? this.isPlaying,
-      position: position ?? this.position,
-      duration: duration ?? this.duration,
-      tracks: tracks ?? this.tracks,
-      masterVolume: masterVolume ?? this.masterVolume,
-      isLoading: isLoading ?? this.isLoading,
-    );
-  }
-}
+import 'package:multitracks/services/hive_service.dart';
 
 class SessionNotifier extends Notifier<SessionState> {
   StreamSubscription<Duration>? _positionSubscription;
@@ -235,6 +197,14 @@ class SessionNotifier extends Notifier<SessionState> {
     _recalculateAllAudioOutputs();
   }
 
+  void removeAllTracks() {
+    for (var track in state.tracks) {
+      track.player.dispose();
+    }
+    _positionSubscription?.cancel();
+    state = SessionState();
+  }
+
   void clearAllSolos() {
     final updatedTracks = state.tracks
         .map((t) => t.copyWith(isSolo: false))
@@ -264,6 +234,128 @@ class SessionNotifier extends Notifier<SessionState> {
           : (track.volume * state.masterVolume);
       track.player.setVolume(targetVolume);
     }
+  }
+
+  Future<bool> saveCurrentSession({
+    required String sessionId,
+    required String title,
+    required String keyNote,
+    required int bpm,
+  }) async {
+    if (state.tracks.isEmpty) return false;
+
+    state = state.copyWith(isLoading: true);
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    try {
+      final idToSave = sessionId.isEmpty
+          ? DateTime.now().millisecondsSinceEpoch.toString()
+          : sessionId;
+
+      final sessionMap = {
+        'id': idToSave,
+        'title': title,
+        'keyNote': keyNote,
+        'bpm': bpm,
+        'masterVolume': state.masterVolume,
+        'tracks': state.tracks.map((t) => t.toMap()).toList(),
+      };
+
+      // Guardado rápido directamente en la caja de Hive
+      await HiveService.saveSession(sessionMap);
+      return true;
+    } catch (e) {
+      debugPrint("Error al guardar la sesión en Hive: $e");
+      return false;
+    } finally {
+      state = state.copyWith(isLoading: false);
+    }
+  }
+
+  // Método para cargar una sesión leída de Hive al reproductor
+  Future<void> loadSessionFromMap(Map<String, dynamic> sessionData) async {
+    // 1. Limpiar la sesión previa de audio
+    for (var track in state.tracks) {
+      await track.player.stop();
+      await track.player.dispose();
+    }
+    _positionSubscription?.cancel();
+
+    state = SessionState(isLoading: true);
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    List<TrackModel> loadedTracks = [];
+    Duration maxDuration = Duration.zero;
+
+    final rawTracks = sessionData['tracks'] as List<dynamic>;
+
+    for (var trackMap in rawTracks) {
+      final map = Map<String, dynamic>.from(trackMap);
+      final filePath = map['filePath'] as String;
+
+      final player = AudioPlayer();
+
+      try {
+        // Configuramos la fuente en streaming local (sin volcar a RAM)
+        final trackDuration = await player.setAudioSource(
+          AudioSource.uri(Uri.file(filePath)),
+          preload: false,
+        );
+
+        final track = TrackModel.fromMap(map, player);
+
+        if ((trackDuration ?? Duration.zero) > maxDuration) {
+          maxDuration = trackDuration ?? maxDuration;
+        }
+
+        loadedTracks.add(track);
+        _applyAudioOutput(track);
+      } catch (e) {
+        debugPrint("Error cargando archivo ($filePath): $e");
+        await player.dispose();
+      }
+    }
+
+    if (loadedTracks.isNotEmpty) {
+      _positionSubscription = loadedTracks.first.player.positionStream.listen((
+        pos,
+      ) {
+        state = state.copyWith(position: pos);
+      });
+    }
+
+    state = state.copyWith(
+      tracks: loadedTracks,
+      duration: maxDuration,
+      masterVolume: (sessionData['masterVolume'] as num?)?.toDouble() ?? 1.0,
+      isLoading: false,
+    );
+  }
+
+  // Método indispensable para vaciar todo antes de crear una nueva sesión
+  Future<void> resetSession() async {
+    // 1. Detener y liberar memoria de todos los reproductores existentes
+    _positionSubscription?.cancel();
+    for (var track in state.tracks) {
+      try {
+        await track.player.stop();
+        await track.player.dispose();
+      } catch (e) {
+        debugPrint("Error liberando reproductor: $e");
+      }
+    }
+
+    // 2. Regresar el estado a los valores iniciales por defecto (sin tracks)
+    state = SessionState();
+  }
+
+  // Método opcional para actualizar título, nota y BPM en el estado global
+  void updateMetadata({String? title, String? keyNote, int? bpm}) {
+    state = state.copyWith(
+      title: title ?? state.title,
+      keyNote: keyNote ?? state.keyNote,
+      bpm: bpm ?? state.bpm,
+    );
   }
 }
 

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:multitracks/providers/session_meta_provider.dart';
 import 'package:multitracks/providers/tracks_mixer_provider.dart';
+import 'package:multitracks/services/hive_service.dart';
 import 'package:multitracks/widgets/app_bar_sesions.dart';
 import 'package:multitracks/widgets/player.dart';
 import 'package:multitracks/widgets/tracks_panels.dart';
@@ -31,43 +31,41 @@ class _NewSesionScreenState extends ConsumerState<NewSesionScreen> {
   late String _currentKeyNote;
   late int _currentBpm;
 
-  // Cambiado a SessionMetadataNotifier para el reset
-  SessionMetadataNotifier? _sessionNotifier;
-
   @override
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.sessionTitle);
     _currentKeyNote = widget.keyNote;
     _currentBpm = widget.bpm;
-  }
 
-  @override
-  void deactivate() {
-    // Capturamos sessionMetadataProvider que se encarga de orquestar el reset
-    _sessionNotifier = ref.read(sessionMetadataProvider.notifier);
-    super.deactivate();
+    if (widget.sessionId.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final sessionData = HiveService.getSession(widget.sessionId);
+        if (sessionData != null) {
+          // El método orchestrador loadSessionFromMap ahora vive en sessionMetadataProvider
+          await ref
+              .read(sessionMetadataProvider.notifier)
+              .loadSessionFromMap(sessionData);
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
     _titleController.dispose();
-
-    Future.microtask(() {
-      _sessionNotifier?.resetSession();
-    });
-
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // 1. isLoading viene de tracksMixerProvider
+    // 1. Lectura de variables del loader desde tracksMixerProvider
     final isLoading = ref.watch(tracksMixerProvider.select((s) => s.isLoading));
-
-    // 2. hasTracks viene de tracksMixerProvider
-    final hasTracks = ref.watch(
-      tracksMixerProvider.select((s) => s.tracks.isNotEmpty),
+    final loadingStatus = ref.watch(
+      tracksMixerProvider.select((s) => s.loadingStatus),
+    );
+    final loadingProgress = ref.watch(
+      tracksMixerProvider.select((s) => s.loadingProgress),
     );
 
     return Stack(
@@ -107,10 +105,8 @@ class _NewSesionScreenState extends ConsumerState<NewSesionScreen> {
                       onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: 20),
-                    if (hasTracks) ...[
-                      const WaveTrack(),
-                      const SizedBox(height: 20),
-                    ],
+                    const WaveTrack(),
+                    const SizedBox(height: 20),
                     Player(bpm: _currentBpm),
                     const SizedBox(height: 20),
                     const TracksWidgets(),
@@ -121,49 +117,60 @@ class _NewSesionScreenState extends ConsumerState<NewSesionScreen> {
           ),
         ),
 
+        // 2. Loader dinámico consumiendo los estados de tracksMixerProvider
         if (isLoading)
           Container(
-            color: Colors.black.withOpacity(0.8),
-            child: GestureDetector(
-              onTap: () {},
-              child: Center(
-                child: Card(
-                  color: const Color(0xFF1E1E2C),
-                  elevation: 10,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+            color: Colors.black.withOpacity(0.85),
+            child: Center(
+              child: Card(
+                color: const Color(0xFF1E1E2C),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 28,
                   ),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 40, vertical: 30),
-
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(
-                          color: Color(0xFFA8F5A2),
-                          strokeWidth: 5,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        loadingStatus.isNotEmpty
+                            ? loadingStatus
+                            : 'Cargando pistas...',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
                         ),
-                        SizedBox(height: 24),
-                        Text(
-                          'Cargando Multitracks...',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
-                            decoration: TextDecoration.none,
+                      ),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: 260,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: LinearProgressIndicator(
+                            value: loadingProgress > 0 ? loadingProgress : null,
+                            minHeight: 10,
+                            backgroundColor: Colors.white10,
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              Color(0xFFA8F5A2),
+                            ),
                           ),
                         ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Configurando streaming de audio',
-                          style: TextStyle(
-                            color: Colors.white60,
-                            fontSize: 14,
-                            decoration: TextDecoration.none,
-                          ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        '${(loadingProgress * 100).toInt()}%',
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),

@@ -43,4 +43,32 @@ class TrackModel {
       isSolo: isSolo ?? this.isSolo,
     );
   }
+
+  // 1. Convertir el modelo a un Map (para guardarlo en Hive)
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'color': color.value, // Guarda el color como entero (ARGB)
+      'filePath': filePath,
+      'volume': volume,
+      'isMuted': isMuted,
+      'isSolo': isSolo,
+    };
+  }
+
+  // 2. Reconstruir el modelo desde un Map (al cargar de Hive)
+  // Requiere pasar la instancia de AudioPlayer ya inicializada
+  factory TrackModel.fromMap(Map<String, dynamic> map, AudioPlayer player) {
+    return TrackModel(
+      id: map['id'] as String,
+      title: map['title'] as String,
+      color: Color(map['color'] as int),
+      filePath: map['filePath'] as String,
+      volume: (map['volume'] as num?)?.toDouble() ?? 0.7,
+      isMuted: map['isMuted'] as bool? ?? false,
+      isSolo: map['isSolo'] as bool? ?? false,
+      player: player,
+    );
+  }
 }
