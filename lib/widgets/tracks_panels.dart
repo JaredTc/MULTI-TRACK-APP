@@ -2,8 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:multitracks/config/app_theme.dart';
-import 'package:multitracks/data/track_model.dart'; // Ajusta la ruta si difiere
-import 'package:multitracks/providers/session_provider.dart'; // Ajusta la ruta a tu provider
+import 'package:multitracks/data/soloud_track_model.dart';
+import 'package:multitracks/providers/tracks_mixer_provider.dart';
 
 class TracksWidgets extends ConsumerWidget {
   final VoidCallback? onTrackAdded;
@@ -13,11 +13,14 @@ class TracksWidgets extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Escuchar el estado global del reproductor
-    final sessionState = ref.watch(sessionProvider);
-    final sessionNotifier = ref.read(sessionProvider.notifier);
+    // final sessionState = ref.watch(sessionProvider);
+    // final sessionNotifier = ref.read(sessionProvider.notifier);
+    final sessionState = ref.watch(tracksMixerProvider);
 
+    // Invocación de acciones
+    final sessionNotifier = ref.read(tracksMixerProvider.notifier);
     return Container(
-      height: 480,
+      height: 500,
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -29,35 +32,65 @@ class TracksWidgets extends ConsumerWidget {
         children: [
           // 1. Botones de Acción Superiores
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () => sessionNotifier.clearAllSolos(),
-                child: Container(
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  margin: const EdgeInsets.only(right: 12),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withOpacity(0.2),
+              Row(
+                children: [
+                  InkWell(
                     borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    'CLEAR ALL SOLOS',
-                    style: TextStyle(
-                      color: AppTheme.primaryColor,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
+                    onTap: () => sessionNotifier.clearAllSolos(),
+                    child: Container(
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      margin: const EdgeInsets.only(right: 12),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(
+                        'CLEAR ALL SOLOS',
+                        style: TextStyle(
+                          color: AppTheme.primaryColor,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => sessionNotifier.clearAllMutes(),
+                    child: Container(
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppTheme.btnRed.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(
+                        'CLEAR ALL MUTES',
+                        style: TextStyle(
+                          color: AppTheme.redTitle,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
+
               InkWell(
                 borderRadius: BorderRadius.circular(16),
-                onTap: () => sessionNotifier.clearAllMutes(),
+                onTap: () => sessionNotifier.removeAllTracks(),
                 child: Container(
                   alignment: Alignment.center,
                   padding: const EdgeInsets.symmetric(
@@ -69,7 +102,7 @@ class TracksWidgets extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
-                    'CLEAR ALL MUTES',
+                    'REMOVE ALL TRACKS',
                     style: TextStyle(
                       color: AppTheme.redTitle,
                       fontSize: 13,
@@ -116,7 +149,7 @@ class TracksWidgets extends ConsumerWidget {
 }
 
 class TrackFaderCard extends ConsumerWidget {
-  final TrackModel track;
+  final SoLoudTrackModel track;
 
   const TrackFaderCard({super.key, required this.track});
 
@@ -129,12 +162,12 @@ class TrackFaderCard extends ConsumerWidget {
       0.0,
       1.0,
     );
-    ref.read(sessionProvider.notifier).updateVolume(track.id, newVolume);
+    ref.read(tracksMixerProvider.notifier).updateVolume(track.id, newVolume);
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sessionNotifier = ref.read(sessionProvider.notifier);
+    final sessionNotifier = ref.read(tracksMixerProvider.notifier);
 
     return Container(
       width: 110,
@@ -321,6 +354,20 @@ class TrackFaderCard extends ConsumerWidget {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+
+          // 3. Botones de PAN (L, C, R)
+          Expanded(
+            child: Row(
+              children: [
+                _buildPanButton(ref, track, 'L', -1.0),
+                const SizedBox(width: 4),
+                _buildPanButton(ref, track, 'C', 0.0),
+                const SizedBox(width: 4),
+                _buildPanButton(ref, track, 'R', 1.0),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -433,4 +480,38 @@ class DashedBorderPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant DashedBorderPainter oldDelegate) => false;
+}
+
+Widget _buildPanButton(
+  WidgetRef ref,
+  SoLoudTrackModel track,
+  String label,
+  double value,
+) {
+  final isSelected = track.pan == value;
+
+  return Expanded(
+    child: GestureDetector(
+      onTap: () {
+        ref.read(tracksMixerProvider.notifier).setTrackPan(track.id, value);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white24 : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? Colors.white : Colors.white38,
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }

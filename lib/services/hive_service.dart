@@ -20,6 +20,12 @@ class HiveService {
     return box.values.map((item) => Map<String, dynamic>.from(item)).toList();
   }
 
+  static Map<String, dynamic>? getSession(String id) {
+    final box = Hive.box<Map>(_sessionsBoxName);
+    final sessionData = box.get(id);
+    return sessionData != null ? Map<String, dynamic>.from(sessionData) : null;
+  }
+
   static Future<void> deleteSession(String id) async {
     final box = Hive.box<Map>(_sessionsBoxName);
     await box.delete(id);
